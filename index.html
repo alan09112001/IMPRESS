@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rogneur d'Étiquettes</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background: #f4f4f9; color: #333; }
+        h1 { text-align: center; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; }
+        select, input[type="file"], button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; width: 100%; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #status { text-align: center; font-size: 14px; color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>✂️ Rogneur PDF</h1>
+    
+    <div class="card">
+        <label for="carrier">Transporteur :</label>
+        <select id="carrier">
+            <option value="mondial-relay">Mondial Relay</option>
+            <option value="vinted-go">Vinted Go</option>
+            <option value="chronopost">Chronopost</option>
+            <option value="colissimo">Colissimo</option>
+            <option value="relais-colis">Relais Colis</option>
+            <option value="dpd">DPD</option>
+            <option value="bpost-home-be">Bpost Home (BE)</option>
+            <option value="dhl">DHL</option>
+            <option value="ups">UPS</option>
+        </select>
+
+        <label for="pdfInput">Sélectionner l'étiquette :</label>
+        <input type="file" id="pdfInput" accept="application/pdf">
+
+        <button id="processBtn" disabled>Rogner et Télécharger</button>
+        <div id="status">En attente d'un fichier...</div>
+    </div>
+
+    <script>
+        const { PDFDocument, degrees } = PDFLib;
+
+        const CARRIERS = {
+            "vinted-go": { rectPt: { x: 4.79, y: 3.85, w: 584.06, h: 346.44 }, rotate: 90 },
+            "chronopost": { rectPt: { x: 509, y: 89.25, w: 318.7, h: 415.2 }, rotate: 0 },
+            "mondial-relay": { rectPt: { x: 4.22, y: 5.87, w: 590.27, h: 392.11 }, rotate: 90 },
+            "colissimo": { rectPt: { x: 51.26, y: 84.81, w: 293.58, h: 351.5 }, rotate: 0 },
+            "relais-colis": { rectPt: { x: 34.88, y: 75.16, w: 345.1, h: 493.47 }, rotate: 0 },
+            "dpd": { rectPt: { x: 4.23, y: 2.25, w: 293.63, h: 410.44 }, rotate: 0 },
+            "bpost-home-be": { rectPt: { x: 17.2, y: 2.12, w: 412.22, h: 313.27 }, rotate: 90 },
+            "dhl": { rectPt: { x: 60.2, y: 48.26, w: 285.44, h: 520.01 }, rotate: 0 },
+            "ups": { rectPt: { x: 17.18, y: 13.08, w: 300.28, h: 426.5 }, rotate: 0 }
+        };
+
+        const OUT = { width: 288, height: 432 };
+        
+        const fileInput = document.getElementById('pdfInput');
+        const processBtn = document.getElementById('processBtn');
+        const carrierSelect = document.getElementById('carrier');
+        const statusDiv = document.getElementById('status');
+
+        fileInput.addEventListener('change', () => {
+            processBtn.disabled = !fileInput.files.length;
+            statusDiv.innerText = fileInput.files.length ? "Prêt à rogner." : "En attente d'un fichier...";
+        });
+
+        function getBounds(pageW, pageH, rectPt) {
+            if (!rectPt) return { left: 0, bottom: 0, right: pageW, top: pageH };
+            return {
+                left: Math.max(0, Math.min(rectPt.x, pageW)),
+                bottom: Math.max(0, Math.min(pageH - (rectPt.y + rectPt.h), pageH)),
+                right: Math.max(0, Math.min(rectPt.x + rectPt.w, pageW)),
+                top: Math.max(0, Math.min(pageH - rectPt.y, pageH))
+            };
+        }
+
+        processBtn.addEventListener('click', async () => {
+            try {
+                statusDiv.innerText = "Traitement en cours...";
+                processBtn.disabled = true;
+
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                const carrierKey = carrierSelect.value;
+                const config = CARRIERS[carrierKey];
+
+                const srcDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                const outDoc = await PDFDocument.create();
+                const srcPage = srcDoc.getPages()[0];
+                
+                const { left, bottom, right, top } = getBounds(srcPage.getWidth(), srcPage.getHeight(), config.rectPt);
+                const c = Math.max(1, right - left);
+                const u = Math.max(1, top - bottom);
+                
+                const embedded = await outDoc.embedPage(srcPage, { left, bottom, right, top });
+                const f = outDoc.addPage([OUT.width, OUT.height]);
+                
+                const x = config.rotate % 360;
+                const v = x % 180 === 0 ? c : u;
+                const y = x % 180 === 0 ? u : c;
+                const g = Math.min(OUT.width / v, OUT.height / y);
+                const b = c * g;
+                const w = u * g;
+                
+                let k = (OUT.width / 2) - ((x % 180 === 0 ? b : w) / 2);
+                let D = (OUT.height / 2) - ((x % 180 === 0 ? w : b) / 2);
+                
+                switch(x) {
+                    case 90: k += w; break;
+                    case 180: k += b; D += w; break;
+                    case 270: D += b; break;
+                }
+                
+                f.drawPage(embedded, { x: k, y: D, width: b, height: w, rotate: degrees(x) });
+                
+                const pdfBytes = await outDoc.save();
+                const blob = new Blob([pdfBytes], { type: "application/pdf" });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `etiquette_${carrierKey}.pdf`;
+                link.click();
+
+                statusDiv.innerText = "✅ Rognage terminé !";
+                processBtn.disabled = false;
+                
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerText = "❌ Erreur lors du traitement.";
+                processBtn.disabled = false;
+            }
+        });
+
+        // Enregistrement du Service Worker pour la PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
