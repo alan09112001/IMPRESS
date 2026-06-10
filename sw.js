@@ -1,8 +1,12 @@
-const CACHE_NAME = 'rogneur-cache-v1';
+const CACHE_NAME = 'rogneur-cache-v2';
 const urlsToCache = [
   './index.html',
   './manifest.json',
-  'https://unpkg.com/pdf-lib/dist/pdf-lib.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
 self.addEventListener('install', event => {
