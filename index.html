@@ -3,136 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rogneur d'Étiquettes</title>
+    <title>Rogneur Manuel 10x15</title>
     <link rel="manifest" href="manifest.json">
-    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background: #f4f4f9; color: #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background: #f4f4f9; color: #333; }
         h1 { text-align: center; font-size: 24px; margin-bottom: 5px; }
         .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 20px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; }
-        label { font-weight: bold; font-size: 14px; color: #444; }
-        select, input[type="file"], button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        input[type="file"], button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; width: 100%; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
-        #status { text-align: center; font-size: 14px; font-weight: 500; color: #444; margin-top: 10px; padding: 10px; border-radius: 6px; background: #eee; }
+        
+        .toolbar { display: flex; gap: 10px; }
+        .btn-secondary { background: #6c757d; flex: 1; }
+        .btn-secondary:hover { background: #5a6268; }
+
+        .cropper-container { height: 400px; background: #eee; border-radius: 8px; overflow: hidden; display: none; align-items: center; justify-content: center; border: 1px dashed #ccc; }
+        img { max-width: 100%; display: block; }
+        
+        #status { text-align: center; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 8px; border: 1px solid transparent; transition: all 0.3s ease; }
+        
+        /* Classes de statut pour les erreurs et succès */
+        .status-idle { background: #e9ecef; color: #495057; border-color: #dee2e6; }
+        .status-loading { background: #fff3cd; color: #856404; border-color: #ffeeba; }
+        .status-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .status-error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
     </style>
 </head>
 <body>
 
-    <h1>✂️ Rogneur PDF</h1>
-    <div class="subtitle">Envoi direct à l'imprimante Mac</div>
+    <h1>📐 Cadrage 10x15</h1>
+    <div class="subtitle">Ajuste visuellement avant l'impression</div>
     
     <div class="card">
-        <label for="carrier">1. Choisir le transporteur :</label>
-        <select id="carrier">
-            <option value="mondial-relay">Mondial Relay</option>
-            <option value="vinted-go">Vinted Go</option>
-            <option value="chronopost">Chronopost</option>
-            <option value="colissimo">Colissimo</option>
-            <option value="relais-colis">Relais Colis</option>
-            <option value="dpd">DPD</option>
-            <option value="bpost-home-be">Bpost Home (BE)</option>
-            <option value="dhl">DHL</option>
-            <option value="ups">UPS</option>
-        </select>
+        <input type="file" id="fileInput" accept="application/pdf, image/*">
 
-        <label for="pdfInput">2. Sélectionner le PDF brut :</label>
-        <input type="file" id="pdfInput" accept="application/pdf">
+        <div class="cropper-container" id="cropperWrapper">
+            <img id="imageToCrop" src="">
+        </div>
 
-        <button id="processBtn" disabled>Rogner & Imprimer</button>
-        <div id="status">En attente d'un fichier...</div>
+        <div class="toolbar" id="toolbar" style="display: none;">
+            <button class="btn-secondary" id="btnRotateLeft">↺ Pivoter</button>
+            <button class="btn-secondary" id="btnRotateRight">Pivoter ↻</button>
+        </div>
+
+        <button id="sendBtn" disabled>🚀 Imprimer l'étiquette</button>
+        <div id="status" class="status-idle">En attente d'un fichier...</div>
     </div>
 
     <script>
-        const { PDFDocument, degrees } = PDFLib;
-
-        const CARRIERS = {
-            "vinted-go": { rectPt: { x: 4.79, y: 3.85, w: 584.06, h: 346.44 }, rotate: 90 },
-            "chronopost": { rectPt: { x: 509, y: 89.25, w: 318.7, h: 415.2 }, rotate: 0 },
-            "mondial-relay": { rectPt: { x: 4.22, y: 5.87, w: 590.27, h: 392.11 }, rotate: 90 },
-            "colissimo": { rectPt: { x: 51.26, y: 84.81, w: 293.58, h: 351.5 }, rotate: 0 },
-            "relais-colis": { rectPt: { x: 34.88, y: 75.16, w: 345.1, h: 493.47 }, rotate: 0 },
-            "dpd": { rectPt: { x: 4.23, y: 2.25, w: 293.63, h: 410.44 }, rotate: 0 },
-            "bpost-home-be": { rectPt: { x: 17.2, y: 2.12, w: 412.22, h: 313.27 }, rotate: 90 },
-            "dhl": { rectPt: { x: 60.2, y: 48.26, w: 285.44, h: 520.01 }, rotate: 0 },
-            "ups": { rectPt: { x: 17.18, y: 13.08, w: 300.28, h: 426.5 }, rotate: 0 }
-        };
-
-        const OUT = { width: 288, height: 432 };
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         
-        const fileInput = document.getElementById('pdfInput');
-        const processBtn = document.getElementById('processBtn');
-        const carrierSelect = document.getElementById('carrier');
+        const fileInput = document.getElementById('fileInput');
+        const cropperWrapper = document.getElementById('cropperWrapper');
+        const imageToCrop = document.getElementById('imageToCrop');
+        const toolbar = document.getElementById('toolbar');
+        const btnRotateLeft = document.getElementById('btnRotateLeft');
+        const btnRotateRight = document.getElementById('btnRotateRight');
+        const sendBtn = document.getElementById('sendBtn');
         const statusDiv = document.getElementById('status');
 
-        fileInput.addEventListener('change', () => {
-            processBtn.disabled = !fileInput.files.length;
-            statusDiv.innerText = fileInput.files.length ? "Fichier chargé. Prêt à envoyer." : "En attente d'un fichier...";
-            statusDiv.style.background = fileInput.files.length ? "#e6f4ea" : "#eee";
-        });
+        let cropper = null;
 
-        function getBounds(pageW, pageH, rectPt) {
-            if (!rectPt) return { left: 0, bottom: 0, right: pageW, top: pageH };
-            return {
-                left: Math.max(0, Math.min(rectPt.x, pageW)),
-                bottom: Math.max(0, Math.min(pageH - (rectPt.y + rectPt.h), pageH)),
-                right: Math.max(0, Math.min(rectPt.x + rectPt.w, pageW)),
-                top: Math.max(0, Math.min(pageH - rectPt.y, pageH))
-            };
+        // Fonction centralisée pour l'affichage des messages
+        function updateStatus(message, state = 'idle') {
+            statusDiv.innerText = message;
+            statusDiv.className = ''; // Reset classes
+            statusDiv.classList.add(`status-${state}`);
         }
 
-        processBtn.addEventListener('click', async () => {
+        function initCropper(imageSource) {
+            imageToCrop.src = imageSource;
+            cropperWrapper.style.display = 'block';
+            toolbar.style.display = 'flex';
+            sendBtn.disabled = false;
+            updateStatus("Glisse et zoome pour remplir le cadre.", "success");
+
+            if (cropper) cropper.destroy();
+
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 10 / 15,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 0.9,
+                background: true,
+                guides: true,
+                highlight: false,
+                cropBoxMovable: false,
+                cropBoxResizable: false
+            });
+        }
+
+        fileInput.addEventListener('change', async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                updateStatus("En attente d'un fichier...", "idle");
+                return;
+            }
+
+            updateStatus("Chargement du document...", "loading");
+
             try {
-                statusDiv.innerText = "⚡ Rognage du PDF en cours...";
-                statusDiv.style.background = "#fff3cd";
-                processBtn.disabled = true;
-
-                const file = fileInput.files[0];
-                const arrayBuffer = await file.arrayBuffer();
-                const carrierKey = carrierSelect.value;
-                const config = CARRIERS[carrierKey];
-
-                const srcDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-                const outDoc = await PDFDocument.create();
-                const srcPage = srcDoc.getPages()[0];
-                
-                const { left, bottom, right, top } = getBounds(srcPage.getWidth(), srcPage.getHeight(), config.rectPt);
-                const c = Math.max(1, right - left);
-                const u = Math.max(1, top - bottom);
-                
-                const embedded = await outDoc.embedPage(srcPage, { left, bottom, right, top });
-                const f = outDoc.addPage([OUT.width, OUT.height]);
-                
-                const x = config.rotate % 360;
-                const v = x % 180 === 0 ? c : u;
-                const y = x % 180 === 0 ? u : c;
-                const g = Math.min(OUT.width / v, OUT.height / y);
-                const b = c * g;
-                const w = u * g;
-                
-                let k = (OUT.width / 2) - ((x % 180 === 0 ? b : w) / 2);
-                let D = (OUT.height / 2) - ((x % 180 === 0 ? w : b) / 2);
-                
-                switch(x) {
-                    case 90: k += w; break;
-                    case 180: k += b; D += w; break;
-                    case 270: D += b; break;
+                if (file.type === 'application/pdf') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    const page = await pdf.getPage(1);
+                    
+                    const viewport = page.getViewport({ scale: 2.0 });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    initCropper(canvas.toDataURL('image/jpeg'));
+                } else if (file.type.startsWith('image/')) {
+                    initCropper(URL.createObjectURL(file));
+                } else {
+                    throw new Error("Format non supporté. Utilise un PDF ou une image.");
                 }
-                
-                f.drawPage(embedded, { x: k, y: D, width: b, height: w, rotate: degrees(x) });
-                
-                const pdfBytes = await outDoc.save();
-                const blob = new Blob([pdfBytes], { type: "application/pdf" });
+            } catch (err) {
+                console.error(err);
+                updateStatus(`❌ Erreur de lecture : ${err.message}`, "error");
+                fileInput.value = ''; // Reset l'input
+                sendBtn.disabled = true;
+            }
+        });
 
-                statusDiv.innerText = "🚀 Envoi du fichier à n8n...";
+        btnRotateLeft.addEventListener('click', () => cropper && cropper.rotate(-90));
+        btnRotateRight.addEventListener('click', () => cropper && cropper.rotate(90));
+
+        sendBtn.addEventListener('click', async () => {
+            if (!cropper) return;
+
+            sendBtn.disabled = true;
+            updateStatus("Génération de l'étiquette 10x15...", "loading");
+
+            try {
+                const croppedCanvas = cropper.getCroppedCanvas({ width: 800, height: 1200 });
+                if (!croppedCanvas) throw new Error("Impossible de recadrer l'image.");
+
+                const imgData = croppedCanvas.toDataURL('image/jpeg', 0.9);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, 100, 150);
+                const pdfBlob = pdf.output('blob');
+
+                updateStatus("🚀 Envoi vers le serveur n8n...", "loading");
                 
-                // Préparation de la requête multipart
                 const formData = new FormData();
-                formData.append('attachment_0', blob, `etiquette_${carrierKey}.pdf`);
+                formData.append('attachment_0', pdfBlob, `etiquette_manuelle.pdf`);
 
-                // Ton URL de test n8n spécifique
                 const webhookUrl = 'http://192.168.1.55.nip.io:5678/webhook-test/impression-etiquette';
 
                 const response = await fetch(webhookUrl, {
@@ -140,26 +169,32 @@
                     body: formData
                 });
 
+                // Gestion précise des erreurs HTTP
                 if (response.ok) {
-                    statusDiv.innerText = "🖨️ Reçu par n8n ! Impression lancée.";
-                    statusDiv.style.background = "#d4edda";
+                    updateStatus("🖨️ Impression lancée avec succès !", "success");
+                } else if (response.status === 404) {
+                    throw new Error("Webhook n8n introuvable (Vérifie qu'il est bien activé et en mode test/production).");
                 } else {
-                    statusDiv.innerText = "❌ Erreur de réponse du serveur n8n.";
-                    statusDiv.style.background = "#f8d7da";
+                    throw new Error(`Le serveur a refusé (Code d'erreur: ${response.status}).`);
                 }
 
-                processBtn.disabled = false;
-                
             } catch (err) {
-                console.error(err);
-                statusDiv.innerText = "❌ Erreur critique durant le traitement.";
-                statusDiv.style.background = "#f8d7da";
-                processBtn.disabled = false;
+                console.error("Détail de l'erreur :", err);
+                
+                // Différenciation de l'erreur de connexion réseau
+                if (err.name === 'TypeError' && err.message.includes('fetch')) {
+                    updateStatus("❌ Impossible de joindre n8n. Es-tu bien sur le même réseau Wi-Fi que ton boîtier ?", "error");
+                } else {
+                    updateStatus(`❌ Échec : ${err.message}`, "error");
+                }
+            } finally {
+                // On réactive le bouton pour permettre une nouvelle tentative
+                sendBtn.disabled = false;
             }
         });
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            navigator.serviceWorker.register('sw.js').catch(err => console.log("Erreur Service Worker", err));
         }
     </script>
 </body>
