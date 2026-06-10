@@ -23,12 +23,12 @@
         
         .toolbar { display: flex; gap: 10px; }
         .btn-secondary { background: #6c757d; flex: 1; }
-        .btn-secondary:hover { background: #5a6268; }
-
-        .cropper-container { height: 400px; background: #eee; border-radius: 8px; overflow: hidden; display: none; align-items: center; justify-content: center; border: 1px dashed #ccc; }
-        img { max-width: 100%; display: block; }
         
-        #status { text-align: center; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 8px; border: 1px solid transparent; transition: all 0.3s ease; }
+        /* CORRECTION MAJEURE ICI : Conteneur strict et simple */
+        #cropperWrapper { width: 100%; height: 450px; background: #ddd; display: none; position: relative; margin: 0 auto; }
+        #imageToCrop { display: block; max-width: 100%; }
+        
+        #status { text-align: center; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 8px; border: 1px solid transparent; }
         .status-idle { background: #e9ecef; color: #495057; border-color: #dee2e6; }
         .status-loading { background: #fff3cd; color: #856404; border-color: #ffeeba; }
         .status-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
@@ -43,7 +43,7 @@
     <div class="card">
         <input type="file" id="fileInput" accept=".pdf, .png, .jpg, .jpeg">
 
-        <div class="cropper-container" id="cropperWrapper">
+        <div id="cropperWrapper">
             <img id="imageToCrop" src="">
         </div>
 
@@ -76,57 +76,57 @@
         }
 
         function initCropper(imageSource) {
-            // 1. Destruction de l'ancienne interface proprement
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
             }
 
-            // 2. On affiche physiquement la div AVANT de charger Cropper (Évite l'écran gris)
+            // 1. On affiche la div "en dur" AVANT de donner l'image
             cropperWrapper.style.display = 'block';
             toolbar.style.display = 'flex';
-            
-            // 3. On injecte l'image
+            sendBtn.disabled = true;
+
+            // 2. On charge la source
             imageToCrop.src = imageSource;
 
-            // 4. On force le navigateur à attendre un instant que l'image soit dessinée à l'écran
-            setTimeout(() => {
-                try {
-                    cropper = new Cropper(imageToCrop, {
-                        aspectRatio: 10 / 15,
-                        viewMode: 1,
-                        dragMode: 'move',
-                        autoCropArea: 0.9,
-                        background: true,
-                        guides: true,
-                        highlight: false,
-                        cropBoxMovable: false,
-                        cropBoxResizable: false
-                    });
-                    sendBtn.disabled = false;
-                    updateStatus("✅ Image chargée. Glisse et zoome pour remplir le cadre.", "success");
-                } catch (e) {
-                    updateStatus("❌ Erreur d'affichage de l'image.", "error");
-                    console.error(e);
-                }
-            }, 150); // Délai magique de 150ms
+            // 3. Quand l'image est prête...
+            imageToCrop.onload = function() {
+                // CORRECTION MAJEURE : On force une pause de 150ms pour laisser le navigateur 
+                // dessiner les pixels à l'écran avant de lancer l'outil par dessus.
+                setTimeout(() => {
+                    try {
+                        cropper = new Cropper(imageToCrop, {
+                            aspectRatio: 10 / 15,
+                            viewMode: 1,
+                            dragMode: 'move',
+                            autoCropArea: 0.9,
+                            background: true,
+                            guides: true,
+                            highlight: false,
+                            cropBoxMovable: false,
+                            cropBoxResizable: false,
+                            ready() {
+                                sendBtn.disabled = false;
+                                updateStatus("✅ Ajuste visuellement ton étiquette.", "success");
+                            }
+                        });
+                    } catch (e) {
+                        console.error(e);
+                        updateStatus("❌ Erreur d'interface.", "error");
+                    }
+                }, 150);
+            };
+
+            imageToCrop.onerror = () => {
+                updateStatus("❌ Impossible de lire l'image.", "error");
+            };
         }
 
         fileInput.addEventListener('change', async () => {
             const file = fileInput.files[0];
-            if (!file) {
-                updateStatus("En attente d'un fichier...", "idle");
-                return;
-            }
+            if (!file) return;
 
-            if (file.name.toLowerCase().endsWith('.heic')) {
-                updateStatus("❌ Format HEIC iPhone non supporté. Utilise un PDF ou fais une capture d'écran.", "error");
-                fileInput.value = '';
-                return;
-            }
-
-            updateStatus("Décodage du fichier en cours...", "loading");
-            sendBtn.disabled = true;
+            updateStatus("Préparation de l'image...", "loading");
 
             try {
                 if (file.type === 'application/pdf') {
@@ -134,22 +134,21 @@
                     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
                     const page = await pdf.getPage(1);
                     
-                    const viewport = page.getViewport({ scale: 2.0 });
+                    // CORRECTION MAJEURE : Baisse de l'échelle à 1.5 pour éviter que 
+                    // la mémoire de Safari/Chrome mobile ne fasse disparaître l'image.
+                    const viewport = page.getViewport({ scale: 1.5 });
                     const canvas = document.createElement('canvas');
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
                     const ctx = canvas.getContext('2d');
                     
                     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    initCropper(canvas.toDataURL('image/jpeg'));
+                    initCropper(canvas.toDataURL('image/jpeg', 0.8)); // Compression légère ajoutée
                 } else if (file.type.startsWith('image/')) {
                     initCropper(URL.createObjectURL(file));
-                } else {
-                    throw new Error("Sélectionne un fichier PDF ou une image valide.");
                 }
             } catch (err) {
-                updateStatus(`❌ Erreur de chargement : ${err.message}`, "error");
-                fileInput.value = ''; 
+                updateStatus(`❌ Erreur : ${err.message}`, "error");
                 cropperWrapper.style.display = 'none';
                 toolbar.style.display = 'none';
             }
@@ -160,55 +159,40 @@
 
         sendBtn.addEventListener('click', async () => {
             if (!cropper) return;
-
             sendBtn.disabled = true;
-            updateStatus("Génération de l'étiquette 10x15...", "loading");
+            updateStatus("🚀 Envoi vers l'imprimante...", "loading");
 
             try {
                 const croppedCanvas = cropper.getCroppedCanvas({ width: 800, height: 1200 });
-                if (!croppedCanvas) throw new Error("Impossible de recadrer l'image.");
-
                 const imgData = croppedCanvas.toDataURL('image/jpeg', 0.9);
+                
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
 
                 pdf.addImage(imgData, 'JPEG', 0, 0, 100, 150);
                 const pdfBlob = pdf.output('blob');
-
-                updateStatus("🚀 Envoi vers le serveur n8n...", "loading");
                 
                 const formData = new FormData();
                 formData.append('attachment_0', pdfBlob, `etiquette_manuelle.pdf`);
 
                 const webhookUrl = 'http://192.168.1.55.nip.io:5678/webhook-test/impression-etiquette';
 
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch(webhookUrl, { method: 'POST', body: formData });
 
                 if (response.ok) {
                     updateStatus("🖨️ Impression lancée avec succès !", "success");
                 } else {
-                    throw new Error(`Le serveur n8n a refusé (Code: ${response.status}).`);
+                    throw new Error("Refusé par n8n.");
                 }
-
             } catch (err) {
-                if (err.name === 'TypeError' && err.message.includes('fetch')) {
-                    updateStatus("❌ Impossible de joindre n8n. Vérifie que le boîtier est allumé et sur le Wi-Fi.", "error");
-                } else {
-                    updateStatus(`❌ Échec : ${err.message}`, "error");
-                }
+                updateStatus("❌ Erreur d'envoi. Vérifie ta connexion au réseau local.", "error");
             } finally {
                 sendBtn.disabled = false;
             }
         });
 
         if ('serviceWorker' in navigator) {
-            // Force la mise à jour du Service Worker en cas de changement
-            navigator.serviceWorker.register('sw.js').then(reg => {
-                reg.update();
-            }).catch(err => console.log(err));
+            navigator.serviceWorker.register('sw.js');
         }
     </script>
 </body>
