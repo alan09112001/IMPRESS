@@ -8,21 +8,24 @@
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background: #f4f4f9; color: #333; }
-        h1 { text-align: center; }
+        h1 { text-align: center; font-size: 24px; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 20px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; }
+        label { font-weight: bold; font-size: 14px; color: #444; }
         select, input[type="file"], button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
-        #status { text-align: center; font-size: 14px; color: #666; margin-top: 10px; }
+        #status { text-align: center; font-size: 14px; font-weight: 500; color: #444; margin-top: 10px; padding: 10px; border-radius: 6px; background: #eee; }
     </style>
 </head>
 <body>
 
     <h1>✂️ Rogneur PDF</h1>
+    <div class="subtitle">Envoi direct à l'imprimante Mac</div>
     
     <div class="card">
-        <label for="carrier">Transporteur :</label>
+        <label for="carrier">1. Choisir le transporteur :</label>
         <select id="carrier">
             <option value="mondial-relay">Mondial Relay</option>
             <option value="vinted-go">Vinted Go</option>
@@ -35,10 +38,10 @@
             <option value="ups">UPS</option>
         </select>
 
-        <label for="pdfInput">Sélectionner l'étiquette :</label>
+        <label for="pdfInput">2. Sélectionner le PDF brut :</label>
         <input type="file" id="pdfInput" accept="application/pdf">
 
-        <button id="processBtn" disabled>Rogner et Télécharger</button>
+        <button id="processBtn" disabled>Rogner & Imprimer</button>
         <div id="status">En attente d'un fichier...</div>
     </div>
 
@@ -66,7 +69,8 @@
 
         fileInput.addEventListener('change', () => {
             processBtn.disabled = !fileInput.files.length;
-            statusDiv.innerText = fileInput.files.length ? "Prêt à rogner." : "En attente d'un fichier...";
+            statusDiv.innerText = fileInput.files.length ? "Fichier chargé. Prêt à envoyer." : "En attente d'un fichier...";
+            statusDiv.style.background = fileInput.files.length ? "#e6f4ea" : "#eee";
         });
 
         function getBounds(pageW, pageH, rectPt) {
@@ -81,7 +85,8 @@
 
         processBtn.addEventListener('click', async () => {
             try {
-                statusDiv.innerText = "Traitement en cours...";
+                statusDiv.innerText = "⚡ Rognage du PDF en cours...";
+                statusDiv.style.background = "#fff3cd";
                 processBtn.disabled = true;
 
                 const file = fileInput.files[0];
@@ -120,24 +125,39 @@
                 
                 const pdfBytes = await outDoc.save();
                 const blob = new Blob([pdfBytes], { type: "application/pdf" });
-                const url = URL.createObjectURL(blob);
-                
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `etiquette_${carrierKey}.pdf`;
-                link.click();
 
-                statusDiv.innerText = "✅ Rognage terminé !";
+                statusDiv.innerText = "🚀 Envoi du fichier à n8n...";
+                
+                // Préparation de la requête multipart
+                const formData = new FormData();
+                formData.append('attachment_0', blob, `etiquette_${carrierKey}.pdf`);
+
+                // Ton URL de test n8n spécifique
+                const webhookUrl = 'http://192.168.1.55.nip.io:5678/webhook-test/impression-etiquette';
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    statusDiv.innerText = "🖨️ Reçu par n8n ! Impression lancée.";
+                    statusDiv.style.background = "#d4edda";
+                } else {
+                    statusDiv.innerText = "❌ Erreur de réponse du serveur n8n.";
+                    statusDiv.style.background = "#f8d7da";
+                }
+
                 processBtn.disabled = false;
                 
             } catch (err) {
                 console.error(err);
-                statusDiv.innerText = "❌ Erreur lors du traitement.";
+                statusDiv.innerText = "❌ Erreur critique durant le traitement.";
+                statusDiv.style.background = "#f8d7da";
                 processBtn.disabled = false;
             }
         });
 
-        // Enregistrement du Service Worker pour la PWA
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
