@@ -75,43 +75,41 @@
             statusDiv.className = `status-${state}`;
         }
 
-        // Le chargement est maintenant sécurisé et asynchrone
         function initCropper(imageSource) {
+            // 1. Destruction de l'ancienne interface proprement
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
             }
 
-            // On purge l'ancienne image pour éviter les bugs
-            imageToCrop.src = '';
-
-            // Événement DÉCLENCHÉ SEULEMENT quand l'image est 100% chargée
-            imageToCrop.onload = () => {
-                cropperWrapper.style.display = 'block';
-                toolbar.style.display = 'flex';
-                sendBtn.disabled = false;
-                updateStatus("Glisse et zoome pour remplir le cadre.", "success");
-
-                cropper = new Cropper(imageToCrop, {
-                    aspectRatio: 10 / 15,
-                    viewMode: 1,
-                    dragMode: 'move',
-                    autoCropArea: 0.9,
-                    background: true,
-                    guides: true,
-                    highlight: false,
-                    cropBoxMovable: false,
-                    cropBoxResizable: false
-                });
-            };
-
-            // Événement DÉCLENCHÉ si le fichier est corrompu ou au format HEIC
-            imageToCrop.onerror = () => {
-                updateStatus("❌ Format d'image invalide. (Attention, les photos HEIC d'iPhone ne sont pas supportées, utilise un JPG ou PDF).", "error");
-            };
-
-            // On injecte la source une fois les sécurités en place
+            // 2. On affiche physiquement la div AVANT de charger Cropper (Évite l'écran gris)
+            cropperWrapper.style.display = 'block';
+            toolbar.style.display = 'flex';
+            
+            // 3. On injecte l'image
             imageToCrop.src = imageSource;
+
+            // 4. On force le navigateur à attendre un instant que l'image soit dessinée à l'écran
+            setTimeout(() => {
+                try {
+                    cropper = new Cropper(imageToCrop, {
+                        aspectRatio: 10 / 15,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 0.9,
+                        background: true,
+                        guides: true,
+                        highlight: false,
+                        cropBoxMovable: false,
+                        cropBoxResizable: false
+                    });
+                    sendBtn.disabled = false;
+                    updateStatus("✅ Image chargée. Glisse et zoome pour remplir le cadre.", "success");
+                } catch (e) {
+                    updateStatus("❌ Erreur d'affichage de l'image.", "error");
+                    console.error(e);
+                }
+            }, 150); // Délai magique de 150ms
         }
 
         fileInput.addEventListener('change', async () => {
@@ -121,14 +119,14 @@
                 return;
             }
 
-            // Si c'est un format HEIC, on bloque direct
             if (file.name.toLowerCase().endsWith('.heic')) {
-                updateStatus("❌ Format HEIC non supporté. Prends une capture d'écran de ta photo ou utilise un PDF.", "error");
+                updateStatus("❌ Format HEIC iPhone non supporté. Utilise un PDF ou fais une capture d'écran.", "error");
                 fileInput.value = '';
                 return;
             }
 
             updateStatus("Décodage du fichier en cours...", "loading");
+            sendBtn.disabled = true;
 
             try {
                 if (file.type === 'application/pdf') {
@@ -147,12 +145,13 @@
                 } else if (file.type.startsWith('image/')) {
                     initCropper(URL.createObjectURL(file));
                 } else {
-                    throw new Error("Sélectionne un PDF ou une image (JPG/PNG).");
+                    throw new Error("Sélectionne un fichier PDF ou une image valide.");
                 }
             } catch (err) {
-                updateStatus(`❌ Erreur : ${err.message}`, "error");
+                updateStatus(`❌ Erreur de chargement : ${err.message}`, "error");
                 fileInput.value = ''; 
-                sendBtn.disabled = true;
+                cropperWrapper.style.display = 'none';
+                toolbar.style.display = 'none';
             }
         });
 
@@ -206,7 +205,10 @@
         });
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+            // Force la mise à jour du Service Worker en cas de changement
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                reg.update();
+            }).catch(err => console.log(err));
         }
     </script>
 </body>
