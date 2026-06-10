@@ -29,8 +29,6 @@
         img { max-width: 100%; display: block; }
         
         #status { text-align: center; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 8px; border: 1px solid transparent; transition: all 0.3s ease; }
-        
-        /* Classes de statut pour les erreurs et succès */
         .status-idle { background: #e9ecef; color: #495057; border-color: #dee2e6; }
         .status-loading { background: #fff3cd; color: #856404; border-color: #ffeeba; }
         .status-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
@@ -43,7 +41,7 @@
     <div class="subtitle">Ajuste visuellement avant l'impression</div>
     
     <div class="card">
-        <input type="file" id="fileInput" accept="application/pdf, image/*">
+        <input type="file" id="fileInput" accept=".pdf, .png, .jpg, .jpeg">
 
         <div class="cropper-container" id="cropperWrapper">
             <img id="imageToCrop" src="">
@@ -72,33 +70,48 @@
 
         let cropper = null;
 
-        // Fonction centralisée pour l'affichage des messages
         function updateStatus(message, state = 'idle') {
             statusDiv.innerText = message;
-            statusDiv.className = ''; // Reset classes
-            statusDiv.classList.add(`status-${state}`);
+            statusDiv.className = `status-${state}`;
         }
 
+        // Le chargement est maintenant sécurisé et asynchrone
         function initCropper(imageSource) {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+
+            // On purge l'ancienne image pour éviter les bugs
+            imageToCrop.src = '';
+
+            // Événement DÉCLENCHÉ SEULEMENT quand l'image est 100% chargée
+            imageToCrop.onload = () => {
+                cropperWrapper.style.display = 'block';
+                toolbar.style.display = 'flex';
+                sendBtn.disabled = false;
+                updateStatus("Glisse et zoome pour remplir le cadre.", "success");
+
+                cropper = new Cropper(imageToCrop, {
+                    aspectRatio: 10 / 15,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 0.9,
+                    background: true,
+                    guides: true,
+                    highlight: false,
+                    cropBoxMovable: false,
+                    cropBoxResizable: false
+                });
+            };
+
+            // Événement DÉCLENCHÉ si le fichier est corrompu ou au format HEIC
+            imageToCrop.onerror = () => {
+                updateStatus("❌ Format d'image invalide. (Attention, les photos HEIC d'iPhone ne sont pas supportées, utilise un JPG ou PDF).", "error");
+            };
+
+            // On injecte la source une fois les sécurités en place
             imageToCrop.src = imageSource;
-            cropperWrapper.style.display = 'block';
-            toolbar.style.display = 'flex';
-            sendBtn.disabled = false;
-            updateStatus("Glisse et zoome pour remplir le cadre.", "success");
-
-            if (cropper) cropper.destroy();
-
-            cropper = new Cropper(imageToCrop, {
-                aspectRatio: 10 / 15,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 0.9,
-                background: true,
-                guides: true,
-                highlight: false,
-                cropBoxMovable: false,
-                cropBoxResizable: false
-            });
         }
 
         fileInput.addEventListener('change', async () => {
@@ -108,7 +121,14 @@
                 return;
             }
 
-            updateStatus("Chargement du document...", "loading");
+            // Si c'est un format HEIC, on bloque direct
+            if (file.name.toLowerCase().endsWith('.heic')) {
+                updateStatus("❌ Format HEIC non supporté. Prends une capture d'écran de ta photo ou utilise un PDF.", "error");
+                fileInput.value = '';
+                return;
+            }
+
+            updateStatus("Décodage du fichier en cours...", "loading");
 
             try {
                 if (file.type === 'application/pdf') {
@@ -127,12 +147,11 @@
                 } else if (file.type.startsWith('image/')) {
                     initCropper(URL.createObjectURL(file));
                 } else {
-                    throw new Error("Format non supporté. Utilise un PDF ou une image.");
+                    throw new Error("Sélectionne un PDF ou une image (JPG/PNG).");
                 }
             } catch (err) {
-                console.error(err);
-                updateStatus(`❌ Erreur de lecture : ${err.message}`, "error");
-                fileInput.value = ''; // Reset l'input
+                updateStatus(`❌ Erreur : ${err.message}`, "error");
+                fileInput.value = ''; 
                 sendBtn.disabled = true;
             }
         });
@@ -169,32 +188,25 @@
                     body: formData
                 });
 
-                // Gestion précise des erreurs HTTP
                 if (response.ok) {
                     updateStatus("🖨️ Impression lancée avec succès !", "success");
-                } else if (response.status === 404) {
-                    throw new Error("Webhook n8n introuvable (Vérifie qu'il est bien activé et en mode test/production).");
                 } else {
-                    throw new Error(`Le serveur a refusé (Code d'erreur: ${response.status}).`);
+                    throw new Error(`Le serveur n8n a refusé (Code: ${response.status}).`);
                 }
 
             } catch (err) {
-                console.error("Détail de l'erreur :", err);
-                
-                // Différenciation de l'erreur de connexion réseau
                 if (err.name === 'TypeError' && err.message.includes('fetch')) {
-                    updateStatus("❌ Impossible de joindre n8n. Es-tu bien sur le même réseau Wi-Fi que ton boîtier ?", "error");
+                    updateStatus("❌ Impossible de joindre n8n. Vérifie que le boîtier est allumé et sur le Wi-Fi.", "error");
                 } else {
                     updateStatus(`❌ Échec : ${err.message}`, "error");
                 }
             } finally {
-                // On réactive le bouton pour permettre une nouvelle tentative
                 sendBtn.disabled = false;
             }
         });
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log("Erreur Service Worker", err));
+            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
         }
     </script>
 </body>
