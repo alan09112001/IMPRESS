@@ -1,0 +1,146 @@
+{
+  "name": "2 - API pile (lister / telecharger / supprimer)",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "GET", "path": "pile", "responseMode": "responseNode", "options": {} },
+      "id": "wh-list",
+      "name": "GET /pile",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 120],
+      "webhookId": "pile-list"
+    },
+    {
+      "parameters": { "command": "find /data/pile -maxdepth 1 -type f -printf '%f\\t%s\\t%T@\\n' 2>/dev/null || true" },
+      "id": "cmd-list",
+      "name": "Lister les fichiers",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [480, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = ($json.stdout || '').trim();\nconst files = !out ? [] : out.split('\\n').map(l => { const p = l.split('\\t'); return { name: p[0], size: Number(p[1]||0), mtime: Math.round(Number(p[2]||0)*1000) }; }).filter(f => f.name).sort((a,b) => b.mtime - a.mtime);\nreturn [{ json: { files } }];"
+      },
+      "id": "parse-list",
+      "name": "Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 120]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.files }}",
+        "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" } ] } }
+      },
+      "id": "resp-list",
+      "name": "Repondre (liste)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 120]
+    },
+
+    {
+      "parameters": { "httpMethod": "GET", "path": "pile-file", "responseMode": "responseNode", "options": {} },
+      "id": "wh-file",
+      "name": "GET /pile-file",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "webhookId": "pile-file"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const name = ((($json.query)||{}).name || '').toString().replace(/[^\\w.\\-]/g, '');\nreturn [{ json: { safe: name } }];"
+      },
+      "id": "san-file",
+      "name": "Nettoyer le nom",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 320]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "=/data/pile/{{ $json.safe }}",
+        "options": { "dataPropertyName": "data" }
+      },
+      "id": "read-file",
+      "name": "Lire le fichier",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [720, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseBinaryPropertyName": "data",
+        "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" } ] } }
+      },
+      "id": "resp-file",
+      "name": "Repondre (fichier)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 320]
+    },
+
+    {
+      "parameters": { "httpMethod": "GET", "path": "pile-remove", "responseMode": "responseNode", "options": {} },
+      "id": "wh-remove",
+      "name": "GET /pile-remove",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 520],
+      "webhookId": "pile-remove"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const name = ((($json.query)||{}).name || '').toString().replace(/[^\\w.\\-]/g, '');\nreturn [{ json: { safe: name } }];"
+      },
+      "id": "san-remove",
+      "name": "Nettoyer le nom ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 520]
+    },
+    {
+      "parameters": { "command": "=rm -f \"/data/pile/{{ $json.safe }}\"" },
+      "id": "cmd-remove",
+      "name": "Supprimer le fichier",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [720, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true } }}",
+        "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" } ] } }
+      },
+      "id": "resp-remove",
+      "name": "Repondre (ok)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 520]
+    }
+  ],
+  "connections": {
+    "GET /pile": { "main": [[{ "node": "Lister les fichiers", "type": "main", "index": 0 }]] },
+    "Lister les fichiers": { "main": [[{ "node": "Parser", "type": "main", "index": 0 }]] },
+    "Parser": { "main": [[{ "node": "Repondre (liste)", "type": "main", "index": 0 }]] },
+
+    "GET /pile-file": { "main": [[{ "node": "Nettoyer le nom", "type": "main", "index": 0 }]] },
+    "Nettoyer le nom": { "main": [[{ "node": "Lire le fichier", "type": "main", "index": 0 }]] },
+    "Lire le fichier": { "main": [[{ "node": "Repondre (fichier)", "type": "main", "index": 0 }]] },
+
+    "GET /pile-remove": { "main": [[{ "node": "Nettoyer le nom ", "type": "main", "index": 0 }]] },
+    "Nettoyer le nom ": { "main": [[{ "node": "Supprimer le fichier", "type": "main", "index": 0 }]] },
+    "Supprimer le fichier": { "main": [[{ "node": "Repondre (ok)", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

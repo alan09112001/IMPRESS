@@ -1,15 +1,17 @@
 {
-  "name": "Rogneur d'Étiquettes",
-  "short_name": "Rogneur PDF",
+  "name": "Étiquettes 10×15",
+  "short_name": "Étiquettes",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#f4f4f9",
-  "theme_color": "#007bff",
+  "orientation": "portrait",
+  "background_color": "#f1f5f9",
+  "theme_color": "#4f46e5",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3143/3143460.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

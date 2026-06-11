@@ -1,0 +1,62 @@
+{
+  "name": "1 - Scan mails (sujet=label) -> dossier pile",
+  "nodes": [
+    {
+      "parameters": { "mailbox": "INBOX", "postProcessAction": "read", "format": "resolved", "options": {} },
+      "id": "imap-trigger",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "credentials": { "imap": { "id": "REMPLACER", "name": "IMAP de ta boite mail" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "" },
+          "combinator": "and",
+          "conditions": [
+            { "leftValue": "={{ $json.subject }}", "rightValue": "label", "operator": { "type": "string", "operation": "contains" } }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-subject",
+      "name": "Sujet contient 'label' ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// 1 item par piece jointe (PDF / image), nom de fichier nettoye\nconst results = [];\nfor (const item of $input.all()) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    const mime = (b.mimeType || '').toLowerCase();\n    if (!mime.includes('pdf') && !mime.startsWith('image/')) continue;\n    const clean = (b.fileName || 'piece').replace(/[^\\w.\\-]/g, '_');\n    results.push({ json: { filename: clean }, binary: { attachment_0: b } });\n  }\n}\nreturn results;"
+      },
+      "id": "explode",
+      "name": "Eclater les pieces jointes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/pile/{{ Date.now() }}-{{ $json.filename }}",
+        "dataPropertyName": "attachment_0",
+        "options": {}
+      },
+      "id": "write-file",
+      "name": "Ecrire dans /data/pile",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1080, 300]
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": { "main": [[{ "node": "Sujet contient 'label' ?", "type": "main", "index": 0 }]] },
+    "Sujet contient 'label' ?": { "main": [[{ "node": "Eclater les pieces jointes", "type": "main", "index": 0 }], []] },
+    "Eclater les pieces jointes": { "main": [[{ "node": "Ecrire dans /data/pile", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

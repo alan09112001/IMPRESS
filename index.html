@@ -2,198 +2,421 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rogneur Manuel 10x15</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <title>Étiquettes 10×15</title>
     <link rel="manifest" href="manifest.json">
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background: #f4f4f9; color: #333; }
-        h1 { text-align: center; font-size: 24px; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; }
-        input[type="file"], button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        
-        .toolbar { display: flex; gap: 10px; }
-        .btn-secondary { background: #6c757d; flex: 1; }
-        
-        /* CORRECTION MAJEURE ICI : Conteneur strict et simple */
-        #cropperWrapper { width: 100%; height: 450px; background: #ddd; display: none; position: relative; margin: 0 auto; }
-        #imageToCrop { display: block; max-width: 100%; }
-        
-        #status { text-align: center; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 8px; border: 1px solid transparent; }
-        .status-idle { background: #e9ecef; color: #495057; border-color: #dee2e6; }
-        .status-loading { background: #fff3cd; color: #856404; border-color: #ffeeba; }
-        .status-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
-        .status-error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+        :root {
+            --bg: #f1f5f9; --surface: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0;
+            --primary: #4f46e5; --primary-dark: #4338ca; --danger: #dc2626;
+            --success-bg: #dcfce7; --success-fg: #166534; --error-bg: #fee2e2; --error-fg: #991b1b;
+            --warn-bg: #fef9c3; --warn-fg: #854d0e; --idle-bg: #e2e8f0; --idle-fg: #475569;
+            --radius: 16px; --shadow: 0 10px 25px -5px rgba(15,23,42,.12), 0 4px 6px -4px rgba(15,23,42,.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg:#0b1120; --surface:#111827; --text:#e5e7eb; --muted:#94a3b8; --border:#1f2937;
+                --idle-bg:#1f2937; --idle-fg:#cbd5e1; --shadow:0 10px 25px -5px rgba(0,0,0,.5); }
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin:0 auto;
+            padding:16px 16px 48px; max-width:640px; background:var(--bg); color:var(--text); line-height:1.45; }
+        header { text-align:center; padding:10px 0 18px; }
+        header h1 { font-size:22px; margin:0; letter-spacing:-.02em; }
+        header .subtitle { color:var(--muted); font-size:13px; margin-top:4px; }
+        .badge { display:inline-block; font-size:11px; font-weight:600; color:var(--primary);
+            background:color-mix(in srgb,var(--primary) 12%,transparent); padding:3px 9px; border-radius:999px; }
+        .card { background:var(--surface); padding:18px; border-radius:var(--radius); box-shadow:var(--shadow);
+            border:1px solid var(--border); display:flex; flex-direction:column; gap:14px; margin-bottom:16px; }
+        .section-title { display:flex; align-items:center; justify-content:space-between; gap:8px;
+            font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+        .count-pill { background:var(--primary); color:#fff; font-size:12px; font-weight:700; min-width:22px;
+            height:22px; padding:0 7px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; }
+        .dropzone { position:relative; border:2px dashed var(--border); border-radius:12px; padding:22px;
+            text-align:center; color:var(--muted); transition:.15s; cursor:pointer; }
+        .dropzone:hover,.dropzone.drag { border-color:var(--primary); color:var(--primary);
+            background:color-mix(in srgb,var(--primary) 6%,transparent); }
+        .dropzone input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+        .dropzone .dz-icon { font-size:30px; }
+        .dropzone .dz-main { font-weight:600; color:var(--text); margin-top:6px; }
+        .dropzone .dz-sub { font-size:12px; margin-top:2px; }
+        button { padding:13px 16px; border-radius:12px; border:none; font-size:15px; font-weight:600; cursor:pointer;
+            transition:transform .05s,background .15s,opacity .15s; width:100%; display:inline-flex;
+            align-items:center; justify-content:center; gap:8px; }
+        button:active { transform:scale(.985); }
+        button:disabled { opacity:.5; cursor:not-allowed; }
+        .btn-primary { background:var(--primary); color:#fff; }
+        .btn-primary:hover:not(:disabled) { background:var(--primary-dark); }
+        .btn-secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
+        .btn-secondary:hover:not(:disabled) { border-color:var(--primary); color:var(--primary); }
+        .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); padding:9px 12px; font-size:13px; }
+        .btn-danger { background:transparent; color:var(--danger); border:1px solid color-mix(in srgb,var(--danger) 40%,var(--border)); }
+        .toolbar { display:flex; gap:10px; }
+        .toolbar button { flex:1; }
+        #cropperWrapper { width:100%; height:56vh; max-height:520px; background:#0f172a; border-radius:12px;
+            overflow:hidden; display:none; position:relative; }
+        #imageToCrop { display:block; max-width:100%; }
+        .zoom-row { display:none; align-items:center; gap:12px; }
+        .zoom-row label { font-size:18px; }
+        input[type="range"] { flex:1; accent-color:var(--primary); height:28px; }
+        #status { text-align:center; font-size:13.5px; font-weight:600; padding:12px; border-radius:10px; border:1px solid transparent; }
+        .status-idle { background:var(--idle-bg); color:var(--idle-fg); }
+        .status-loading { background:var(--warn-bg); color:var(--warn-fg); }
+        .status-success { background:var(--success-bg); color:var(--success-fg); }
+        .status-error { background:var(--error-bg); color:var(--error-fg); }
+        .empty { color:var(--muted); font-size:13px; text-align:center; padding:14px 0; }
+        .job-list { display:flex; flex-direction:column; gap:10px; }
+        .job { display:flex; align-items:center; gap:12px; padding:10px; border:1px solid var(--border);
+            border-radius:12px; background:color-mix(in srgb,var(--surface) 60%,var(--bg)); }
+        .job .thumb { width:44px; height:66px; border-radius:6px; background:#fff; border:1px solid var(--border);
+            flex-shrink:0; object-fit:cover; display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--muted); }
+        .job .meta { flex:1; min-width:0; }
+        .job .meta .name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .job .meta .time { font-size:12px; color:var(--muted); }
+        .job .actions { display:flex; gap:6px; flex-shrink:0; }
+        .icon-btn { width:38px; height:38px; padding:0; border-radius:10px; font-size:16px; }
+        details.settings { border:1px solid var(--border); border-radius:12px; padding:0 14px; background:var(--surface); }
+        details.settings summary { cursor:pointer; padding:12px 0; font-size:13px; font-weight:600; color:var(--muted); list-style:none; }
+        details.settings summary::-webkit-details-marker { display:none; }
+        details.settings .body { padding-bottom:14px; display:flex; flex-direction:column; gap:8px; }
+        details.settings label { font-size:12px; color:var(--muted); }
+        details.settings input { width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+            background:var(--bg); color:var(--text); font-size:13px; }
     </style>
 </head>
 <body>
 
-    <h1>📐 Cadrage 10x15</h1>
-    <div class="subtitle">Ajuste visuellement avant l'impression</div>
-    
+    <header>
+        <h1>🏷️ Étiquettes 10×15</h1>
+        <div class="subtitle">Cadrage net • Pile mails • Historique <span class="badge">300 DPI</span></div>
+    </header>
+
+    <!-- ÉDITEUR -->
     <div class="card">
-        <input type="file" id="fileInput" accept=".pdf, .png, .jpg, .jpeg">
-
-        <div id="cropperWrapper">
-            <img id="imageToCrop" src="">
+        <label class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg">
+            <div class="dz-icon">📂</div>
+            <div class="dz-main">Choisir un fichier</div>
+            <div class="dz-sub">PDF, PNG ou JPG — glisser-déposer accepté</div>
+        </label>
+        <div id="cropperWrapper"><img id="imageToCrop" src=""></div>
+        <div class="zoom-row" id="zoomRow">
+            <label>🔍</label>
+            <input type="range" id="zoomSlider" min="0" max="1" step="0.01" value="0">
+            <button class="btn-ghost" id="btnFit" style="width:auto;">Ajuster</button>
         </div>
-
-        <div class="toolbar" id="toolbar" style="display: none;">
+        <div class="toolbar" id="toolbar" style="display:none;">
             <button class="btn-secondary" id="btnRotateLeft">↺ Pivoter</button>
             <button class="btn-secondary" id="btnRotateRight">Pivoter ↻</button>
         </div>
-
-        <button id="sendBtn" disabled>🚀 Imprimer l'étiquette</button>
-        <div id="status" class="status-idle">En attente d'un fichier...</div>
+        <div class="toolbar" id="actionBar" style="display:none;">
+            <button class="btn-secondary" id="btnQueue">➕ Ajouter à la pile</button>
+            <button class="btn-primary" id="sendBtn" disabled>🖨️ Imprimer</button>
+        </div>
+        <div id="status" class="status-idle">En attente d'un fichier…</div>
     </div>
+
+    <!-- PILE DISTANTE (mails label) -->
+    <div class="card">
+        <div class="section-title">
+            <span>📧 Pile des mails <span class="count-pill" id="remoteCount">0</span></span>
+            <button class="btn-ghost" id="refreshRemote" style="width:auto;">↻ Rafraîchir</button>
+        </div>
+        <div id="remoteList" class="job-list"></div>
+    </div>
+
+    <!-- PILE LOCALE -->
+    <div class="card">
+        <div class="section-title">
+            <span>📋 Pile à imprimer <span class="count-pill" id="queueCount">0</span></span>
+            <button class="btn-ghost" id="clearQueue" style="width:auto;">Vider</button>
+        </div>
+        <div id="queueList" class="job-list"></div>
+        <button class="btn-primary" id="printAllBtn" disabled>🖨️ Imprimer toute la pile</button>
+    </div>
+
+    <!-- HISTORIQUE -->
+    <div class="card">
+        <div class="section-title">
+            <span>🕓 Dernières impressions</span>
+            <button class="btn-ghost" id="clearHistory" style="width:auto;">Effacer</button>
+        </div>
+        <div id="historyList" class="job-list"></div>
+    </div>
+
+    <details class="settings">
+        <summary>⚙️ Réglages</summary>
+        <div class="body">
+            <label for="webhookInput">URL du webhook d'impression</label>
+            <input type="text" id="webhookInput" placeholder="http://…/webhook/impression-etiquette">
+            <label style="margin-top:4px;">Qualité (DPI cible)</label>
+            <input type="number" id="dpiInput" min="150" max="600" step="50" value="300">
+            <label style="margin-top:4px;">Base n8n pour la pile (déduite automatiquement)</label>
+            <input type="text" id="baseShow" disabled>
+        </div>
+    </details>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-        
-        const fileInput = document.getElementById('fileInput');
-        const cropperWrapper = document.getElementById('cropperWrapper');
-        const imageToCrop = document.getElementById('imageToCrop');
-        const toolbar = document.getElementById('toolbar');
-        const btnRotateLeft = document.getElementById('btnRotateLeft');
-        const btnRotateRight = document.getElementById('btnRotateRight');
-        const sendBtn = document.getElementById('sendBtn');
-        const statusDiv = document.getElementById('status');
 
-        let cropper = null;
+        const DEFAULT_WEBHOOK = 'http://192.168.1.55.nip.io:5678/webhook-test/impression-etiquette';
+        const LABEL_W_MM = 100, LABEL_H_MM = 150;
+        const cfg = {
+            webhook: localStorage.getItem('webhook') || DEFAULT_WEBHOOK,
+            dpi: parseInt(localStorage.getItem('dpi') || '300', 10)
+        };
+        // Base n8n déduite du webhook d'impression -> endpoints de la pile distante
+        const n8nBase = () => cfg.webhook.replace(/\/(webhook(-test)?)\/.*$/i, '');
+        const pileURL    = ()     => `${n8nBase()}/webhook/pile`;
+        const fileURL    = name   => `${n8nBase()}/webhook/pile-file?name=${encodeURIComponent(name)}`;
+        const removeURL  = name   => `${n8nBase()}/webhook/pile-remove?name=${encodeURIComponent(name)}`;
 
-        function updateStatus(message, state = 'idle') {
-            statusDiv.innerText = message;
-            statusDiv.className = `status-${state}`;
+        const $ = id => document.getElementById(id);
+        const fileInput=$('fileInput'), dropzone=$('dropzone'), cropperWrapper=$('cropperWrapper'),
+            imageToCrop=$('imageToCrop'), toolbar=$('toolbar'), actionBar=$('actionBar'),
+            zoomRow=$('zoomRow'), zoomSlider=$('zoomSlider'), sendBtn=$('sendBtn'), btnQueue=$('btnQueue'),
+            statusDiv=$('status'), queueList=$('queueList'), historyList=$('historyList'),
+            remoteList=$('remoteList'), remoteCount=$('remoteCount'), queueCount=$('queueCount'),
+            printAllBtn=$('printAllBtn'), webhookInput=$('webhookInput'), dpiInput=$('dpiInput'), baseShow=$('baseShow');
+
+        webhookInput.value = cfg.webhook; dpiInput.value = cfg.dpi; baseShow.value = n8nBase();
+        webhookInput.addEventListener('change', () => { cfg.webhook = webhookInput.value.trim() || DEFAULT_WEBHOOK; localStorage.setItem('webhook', cfg.webhook); baseShow.value = n8nBase(); fetchRemotePile(); });
+        dpiInput.addEventListener('change', () => { cfg.dpi = Math.min(600, Math.max(150, parseInt(dpiInput.value||'300',10))); dpiInput.value = cfg.dpi; localStorage.setItem('dpi', cfg.dpi); });
+
+        let cropper = null, currentName = 'etiquette', pendingRemote = null;
+        const status = (msg, state='idle') => { statusDiv.innerText = msg; statusDiv.className = `status-${state}`; };
+        const outPx = () => ({ w: Math.round(LABEL_W_MM/25.4*cfg.dpi), h: Math.round(LABEL_H_MM/25.4*cfg.dpi) });
+
+        // ===== IndexedDB (pile locale + historique) =====
+        let db;
+        function idb() {
+            return new Promise((res, rej) => {
+                if (db) return res(db);
+                const r = indexedDB.open('labels-db', 1);
+                r.onupgradeneeded = e => { const s = e.target.result.createObjectStore('jobs',{keyPath:'id'});
+                    s.createIndex('state','state'); s.createIndex('createdAt','createdAt'); };
+                r.onsuccess = e => { db = e.target.result; res(db); };
+                r.onerror = e => rej(e.target.error);
+            });
         }
+        const tx = m => idb().then(d => d.transaction('jobs', m).objectStore('jobs'));
+        const idbPut = j => tx('readwrite').then(s => new Promise((res,rej)=>{ const r=s.put(j); r.onsuccess=res; r.onerror=()=>rej(r.error); }));
+        const idbDel = id => tx('readwrite').then(s => new Promise((res,rej)=>{ const r=s.delete(id); r.onsuccess=res; r.onerror=()=>rej(r.error); }));
+        const idbAll = () => tx('readonly').then(s => new Promise((res,rej)=>{ const r=s.getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }));
 
-        function initCropper(imageSource) {
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
+        // ===== Chargement (fichier local OU blob distant) =====
+        function showEditor(){ cropperWrapper.style.display='block'; toolbar.style.display='flex'; actionBar.style.display='flex'; zoomRow.style.display='flex'; }
+        const guessType = (name, fallback='') => /\.pdf$/i.test(name) ? 'application/pdf' : (/\.(png|jpe?g)$/i.test(name) ? 'image/'+(name.split('.').pop().toLowerCase()) : fallback);
 
-            // 1. On affiche la div "en dur" AVANT de donner l'image
-            cropperWrapper.style.display = 'block';
-            toolbar.style.display = 'flex';
-            sendBtn.disabled = true;
-
-            // 2. On charge la source
-            imageToCrop.src = imageSource;
-
-            // 3. Quand l'image est prête...
-            imageToCrop.onload = function() {
-                // CORRECTION MAJEURE : On force une pause de 150ms pour laisser le navigateur 
-                // dessiner les pixels à l'écran avant de lancer l'outil par dessus.
-                setTimeout(() => {
-                    try {
-                        cropper = new Cropper(imageToCrop, {
-                            aspectRatio: 10 / 15,
-                            viewMode: 1,
-                            dragMode: 'move',
-                            autoCropArea: 0.9,
-                            background: true,
-                            guides: true,
-                            highlight: false,
-                            cropBoxMovable: false,
-                            cropBoxResizable: false,
-                            ready() {
-                                sendBtn.disabled = false;
-                                updateStatus("✅ Ajuste visuellement ton étiquette.", "success");
-                            }
-                        });
-                    } catch (e) {
-                        console.error(e);
-                        updateStatus("❌ Erreur d'interface.", "error");
-                    }
-                }, 150);
-            };
-
-            imageToCrop.onerror = () => {
-                updateStatus("❌ Impossible de lire l'image.", "error");
-            };
-        }
-
-        fileInput.addEventListener('change', async () => {
-            const file = fileInput.files[0];
+        async function loadFile(file, opts={}) {
             if (!file) return;
-
-            updateStatus("Préparation de l'image...", "loading");
-
+            const name = (opts.name || file.name || 'etiquette');
+            currentName = name.replace(/\.[^.]+$/, '');
+            const type = file.type || guessType(name);
+            status('Préparation haute résolution…', 'loading');
             try {
-                if (file.type === 'application/pdf') {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                if (type === 'application/pdf') {
+                    const buf = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(buf).promise;
                     const page = await pdf.getPage(1);
-                    
-                    // CORRECTION MAJEURE : Baisse de l'échelle à 1.5 pour éviter que 
-                    // la mémoire de Safari/Chrome mobile ne fasse disparaître l'image.
-                    const viewport = page.getViewport({ scale: 1.5 });
+                    const base = page.getViewport({ scale: 1 });
+                    const scale = Math.min(4, 2400 / Math.max(base.width, base.height));
+                    const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
+                    canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
                     const ctx = canvas.getContext('2d');
-                    
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    initCropper(canvas.toDataURL('image/jpeg', 0.8)); // Compression légère ajoutée
-                } else if (file.type.startsWith('image/')) {
+                    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    initCropper(canvas.toDataURL('image/png'));
+                } else if (type.startsWith('image/')) {
                     initCropper(URL.createObjectURL(file));
-                }
-            } catch (err) {
-                updateStatus(`❌ Erreur : ${err.message}`, "error");
-                cropperWrapper.style.display = 'none';
-                toolbar.style.display = 'none';
-            }
-        });
+                } else { status('❌ Format non supporté.', 'error'); }
+            } catch (err) { status(`❌ Erreur : ${err.message}`, 'error'); }
+        }
 
-        btnRotateLeft.addEventListener('click', () => cropper && cropper.rotate(-90));
-        btnRotateRight.addEventListener('click', () => cropper && cropper.rotate(90));
+        function initCropper(src) {
+            if (cropper) { cropper.destroy(); cropper = null; }
+            showEditor(); sendBtn.disabled=true; btnQueue.disabled=true;
+            imageToCrop.src = src;
+            imageToCrop.onload = () => setTimeout(() => {
+                try {
+                    cropper = new Cropper(imageToCrop, {
+                        aspectRatio: LABEL_W_MM/LABEL_H_MM, viewMode:1, dragMode:'move', autoCropArea:0.92,
+                        background:true, guides:true, highlight:false, cropBoxMovable:false, cropBoxResizable:false,
+                        zoom(){ syncZoomSlider(); },
+                        ready(){ sendBtn.disabled=false; btnQueue.disabled=false; syncZoomSlider();
+                            status('✅ Ajuste puis imprime ou ajoute à la pile.', 'success'); }
+                    });
+                } catch(e){ status("❌ Erreur d'interface.", 'error'); }
+            }, 120);
+            imageToCrop.onerror = () => status("❌ Impossible de lire l'image.", 'error');
+        }
+
+        function syncZoomSlider() {
+            if (!cropper) return;
+            const d = cropper.getImageData(); const ratio = d.width / d.naturalWidth;
+            if (!syncZoomSlider._base) syncZoomSlider._base = ratio;
+            const v = Math.min(1, Math.max(0, (ratio/syncZoomSlider._base - 1)/2));
+            zoomSlider.value = isFinite(v) ? v : 0;
+        }
+        zoomSlider.addEventListener('input', () => {
+            if (!cropper) return;
+            const d = cropper.getImageData(); const base = syncZoomSlider._base || (d.width/d.naturalWidth);
+            cropper.zoomTo(base * (1 + parseFloat(zoomSlider.value)*2));
+        });
+        $('btnFit').addEventListener('click', () => { if (cropper){ cropper.reset(); syncZoomSlider._base=null; syncZoomSlider(); } });
+
+        // ===== Génération étiquette (PNG sans perte) =====
+        function buildLabel() {
+            const { w, h } = outPx();
+            const canvas = cropper.getCroppedCanvas({ width:w, height:h, fillColor:'#ffffff', imageSmoothingEnabled:true, imageSmoothingQuality:'high' });
+            const full = canvas.toDataURL('image/png');
+            const tc = document.createElement('canvas'); tc.width=120; tc.height=180;
+            tc.getContext('2d').drawImage(canvas,0,0,tc.width,tc.height);
+            return { full, thumb: tc.toDataURL('image/jpeg', 0.7) };
+        }
+
+        async function sendToPrinter(dataUrl, name) {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:[LABEL_W_MM, LABEL_H_MM] });
+            pdf.addImage(dataUrl, 'PNG', 0, 0, LABEL_W_MM, LABEL_H_MM, undefined, 'NONE');
+            const fd = new FormData();
+            fd.append('attachment_0', pdf.output('blob'), `${name||'etiquette'}.pdf`);
+            const res = await fetch(cfg.webhook, { method:'POST', body: fd });
+            if (!res.ok) throw new Error('Refusé par n8n (' + res.status + ')');
+        }
+
+        // Une fois l'étiquette distante traitée (imprimée OU mise en pile locale), on la retire du serveur
+        async function consumeRemote() {
+            if (!pendingRemote) return;
+            const name = pendingRemote; pendingRemote = null;
+            try { await fetch(removeURL(name)); } catch(e) {}
+            fetchRemotePile();
+        }
 
         sendBtn.addEventListener('click', async () => {
             if (!cropper) return;
-            sendBtn.disabled = true;
-            updateStatus("🚀 Envoi vers l'imprimante...", "loading");
-
+            sendBtn.disabled=true; btnQueue.disabled=true; status('🚀 Envoi vers l\'imprimante…', 'loading');
             try {
-                const croppedCanvas = cropper.getCroppedCanvas({ width: 800, height: 1200 });
-                const imgData = croppedCanvas.toDataURL('image/jpeg', 0.9);
-                
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
-
-                pdf.addImage(imgData, 'JPEG', 0, 0, 100, 150);
-                const pdfBlob = pdf.output('blob');
-                
-                const formData = new FormData();
-                formData.append('attachment_0', pdfBlob, `etiquette_manuelle.pdf`);
-
-                const webhookUrl = 'http://192.168.1.55.nip.io:5678/webhook-test/impression-etiquette';
-
-                const response = await fetch(webhookUrl, { method: 'POST', body: formData });
-
-                if (response.ok) {
-                    updateStatus("🖨️ Impression lancée avec succès !", "success");
-                } else {
-                    throw new Error("Refusé par n8n.");
-                }
-            } catch (err) {
-                updateStatus("❌ Erreur d'envoi. Vérifie ta connexion au réseau local.", "error");
-            } finally {
-                sendBtn.disabled = false;
-            }
+                const { full, thumb } = buildLabel();
+                await sendToPrinter(full, currentName);
+                await idbPut({ id:'j'+Date.now()+Math.random().toString(36).slice(2,6), name:currentName, full, thumb, createdAt:Date.now(), printedAt:Date.now(), state:'printed' });
+                await consumeRemote(); await refreshLists();
+                status('🖨️ Impression lancée avec succès !', 'success');
+            } catch (err) { status('❌ ' + err.message + ' — vérifie le réseau local.', 'error'); }
+            finally { sendBtn.disabled=false; btnQueue.disabled=false; }
         });
 
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+        btnQueue.addEventListener('click', async () => {
+            if (!cropper) return;
+            const { full, thumb } = buildLabel();
+            await idbPut({ id:'j'+Date.now()+Math.random().toString(36).slice(2,6), name:currentName, full, thumb, createdAt:Date.now(), printedAt:null, state:'queued' });
+            await consumeRemote(); await refreshLists();
+            status('➕ Ajouté à la pile.', 'success');
+        });
+
+        printAllBtn.addEventListener('click', async () => {
+            const jobs = (await idbAll()).filter(j=>j.state==='queued').sort((a,b)=>a.createdAt-b.createdAt);
+            if (!jobs.length) return;
+            printAllBtn.disabled = true; let ok=0, fail=0;
+            for (let i=0;i<jobs.length;i++) {
+                status(`🖨️ Impression ${i+1}/${jobs.length}…`, 'loading');
+                try { await sendToPrinter(jobs[i].full, jobs[i].name); jobs[i].state='printed'; jobs[i].printedAt=Date.now(); await idbPut(jobs[i]); ok++; }
+                catch(e){ fail++; }
+                await refreshLists();
+            }
+            status(fail ? `⚠️ ${ok} imprimée(s), ${fail} en échec.` : `✅ Pile imprimée (${ok}).`, fail?'error':'success');
+            printAllBtn.disabled = false;
+        });
+
+        $('clearQueue').addEventListener('click', async () => { for (const j of (await idbAll()).filter(j=>j.state==='queued')) await idbDel(j.id); await refreshLists(); });
+        $('clearHistory').addEventListener('click', async () => { for (const j of (await idbAll()).filter(j=>j.state==='printed')) await idbDel(j.id); await refreshLists(); });
+
+        // ===== Pile distante (mails) =====
+        async function fetchRemotePile() {
+            remoteList.innerHTML = '<div class="empty">Chargement…</div>';
+            try {
+                const r = await fetch(pileURL(), { method:'GET' });
+                if (!r.ok) throw new Error(r.status);
+                const j = await r.json();
+                const files = Array.isArray(j) ? j : (j.files || []);
+                renderRemote(files);
+            } catch (e) {
+                remoteCount.innerText = '0';
+                remoteList.innerHTML = `<div class="empty">Pile distante indisponible (${e.message}).<br>Vérifie le workflow n8n « API pile ».</div>`;
+            }
         }
+        function renderRemote(files) {
+            remoteCount.innerText = files.length;
+            remoteList.innerHTML = files.length ? '' : '<div class="empty">Aucune étiquette reçue par mail.</div>';
+            files.forEach(f => {
+                const row = document.createElement('div'); row.className='job';
+                const thumb = document.createElement('div'); thumb.className='thumb'; thumb.innerText = /\.pdf$/i.test(f.name) ? '📄' : '🖼️';
+                const meta = document.createElement('div'); meta.className='meta';
+                meta.innerHTML = `<div class="name">${f.name}</div><div class="time">${f.mtime ? fmt(f.mtime) : ''}</div>`;
+                const act = document.createElement('div'); act.className='actions';
+                const crop = document.createElement('button'); crop.className='icon-btn btn-primary'; crop.title='Rogner'; crop.innerText='✂️';
+                crop.onclick = () => loadRemote(f.name);
+                const del = document.createElement('button'); del.className='icon-btn btn-danger'; del.title='Supprimer'; del.innerText='🗑️';
+                del.onclick = async () => { try{ await fetch(removeURL(f.name)); }catch(e){} fetchRemotePile(); };
+                act.append(crop, del); row.append(thumb, meta, act); remoteList.appendChild(row);
+            });
+        }
+        async function loadRemote(name) {
+            status('Téléchargement de l\'étiquette…', 'loading');
+            try {
+                const r = await fetch(fileURL(name)); if (!r.ok) throw new Error(r.status);
+                const blob = await r.blob();
+                pendingRemote = name;
+                await loadFile(blob, { name });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (e) { status('❌ Téléchargement impossible (' + e.message + ').', 'error'); }
+        }
+        $('refreshRemote').addEventListener('click', fetchRemotePile);
+
+        // ===== Listes locales =====
+        const fmt = t => new Date(t).toLocaleString('fr-FR',{ day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+        async function refreshLists() {
+            const all = await idbAll();
+            const queued = all.filter(j=>j.state==='queued').sort((a,b)=>a.createdAt-b.createdAt);
+            const printed = all.filter(j=>j.state==='printed').sort((a,b)=>b.printedAt-a.printedAt).slice(0,15);
+            queueCount.innerText = queued.length; printAllBtn.disabled = queued.length===0;
+            queueList.innerHTML = queued.length ? '' : '<div class="empty">Pile vide.</div>';
+            queued.forEach(j => queueList.appendChild(jobRow(j, [
+                { icon:'🖨️', cls:'btn-secondary', title:'Imprimer', fn: async ()=>{ try{ await sendToPrinter(j.full,j.name); j.state='printed'; j.printedAt=Date.now(); await idbPut(j); await refreshLists(); status('🖨️ Imprimée.','success'); }catch(e){ status('❌ '+e.message,'error'); } } },
+                { icon:'🗑️', cls:'btn-danger', title:'Retirer', fn: async ()=>{ await idbDel(j.id); await refreshLists(); } }
+            ])));
+            historyList.innerHTML = printed.length ? '' : '<div class="empty">Aucune impression récente.</div>';
+            printed.forEach(j => historyList.appendChild(jobRow(j, [
+                { icon:'🔁', cls:'btn-secondary', title:'Réimprimer', fn: async ()=>{ status('🚀 Réimpression…','loading'); try{ await sendToPrinter(j.full,j.name); j.printedAt=Date.now(); await idbPut(j); await refreshLists(); status('🖨️ Réimprimée.','success'); }catch(e){ status('❌ '+e.message,'error'); } } },
+                { icon:'🗑️', cls:'btn-danger', title:'Supprimer', fn: async ()=>{ await idbDel(j.id); await refreshLists(); } }
+            ], j.printedAt)));
+        }
+        function jobRow(j, actions, timeOverride) {
+            const row = document.createElement('div'); row.className='job';
+            const img = document.createElement('img'); img.className='thumb'; img.src=j.thumb; img.alt='';
+            const meta = document.createElement('div'); meta.className='meta';
+            meta.innerHTML = `<div class="name">${j.name||'étiquette'}</div><div class="time">${fmt(timeOverride||j.createdAt)}</div>`;
+            const act = document.createElement('div'); act.className='actions';
+            actions.forEach(a => { const b=document.createElement('button'); b.className=`icon-btn ${a.cls}`; b.title=a.title; b.innerText=a.icon; b.onclick=a.fn; act.appendChild(b); });
+            row.append(img, meta, act); return row;
+        }
+
+        fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+        ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.add('drag'); }));
+        ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); }));
+        dropzone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+        $('btnRotateLeft').addEventListener('click', () => cropper && cropper.rotate(-90));
+        $('btnRotateRight').addEventListener('click', () => cropper && cropper.rotate(90));
+
+        refreshLists(); fetchRemotePile();
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
     </script>
 </body>
 </html>

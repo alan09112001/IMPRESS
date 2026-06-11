@@ -1,0 +1,83 @@
+{
+  "name": "Scan mails -> impression etiquettes (sujet=label)",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "resolved",
+        "options": {}
+      },
+      "id": "imap-trigger",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "credentials": {
+        "imap": { "id": "REMPLACER", "name": "IMAP de ta boite mail" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "label",
+              "operator": { "type": "string", "operation": "contains" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-subject",
+      "name": "Sujet contient 'label' ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Eclate chaque mail en 1 item par piece jointe (PDF / image)\nconst results = [];\nfor (const item of $input.all()) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    const mime = (b.mimeType || '').toLowerCase();\n    // on ne garde que PDF et images\n    if (!mime.includes('pdf') && !mime.startsWith('image/')) continue;\n    results.push({\n      json: {\n        filename: b.fileName || 'piece_jointe',\n        subject: item.json.subject,\n        from: item.json.from\n      },\n      binary: { attachment_0: b }\n    });\n  }\n}\nreturn results;"
+      },
+      "id": "explode-attachments",
+      "name": "Eclater les pieces jointes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.1.55.nip.io:5678/webhook/impression-etiquette",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "attachment_0",
+              "inputDataFieldName": "attachment_0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-print",
+      "name": "Envoyer a l'impression",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 300]
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": { "main": [[{ "node": "Sujet contient 'label' ?", "type": "main", "index": 0 }]] },
+    "Sujet contient 'label' ?": { "main": [[{ "node": "Eclater les pieces jointes", "type": "main", "index": 0 }], []] },
+    "Eclater les pieces jointes": { "main": [[{ "node": "Envoyer a l'impression", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
