@@ -225,19 +225,29 @@
                     const buf = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument(buf).promise;
                     const page = await pdf.getPage(1);
-                    const base = page.getViewport({ scale: 1 });
-                    const scale = Math.min(4, 2400 / Math.max(base.width, base.height));
-                    const viewport = page.getViewport({ scale });
-                    const canvas = document.createElement('canvas');
-                    canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                    await page.render({ canvasContext: ctx, viewport }).promise;
-                    initCropper(canvas.toDataURL('image/png'));
+                    initCropper(await renderPdfToDataUrl(page));
                 } else if (type.startsWith('image/')) {
                     initCropper(URL.createObjectURL(file));
                 } else { status('❌ Format non supporté.', 'error'); }
             } catch (err) { status(`❌ Erreur : ${err.message}`, 'error'); }
+        }
+
+        // Rendu PDF haute résolution, avec repli si la mémoire du navigateur sature
+        async function renderPdfToDataUrl(page) {
+            const base = page.getViewport({ scale: 1 });
+            for (const target of [3500, 2400, 1600]) {
+                try {
+                    const scale = Math.min(6, target / Math.max(base.width, base.height));
+                    const vp = page.getViewport({ scale });
+                    const c = document.createElement('canvas');
+                    c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+                    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+                    return c.toDataURL('image/png');
+                } catch (e) { /* on retente plus petit */ }
+            }
+            throw new Error('rendu PDF impossible (mémoire)');
         }
 
         function initCropper(src) {
@@ -248,10 +258,10 @@
                 try {
                     cropper = new Cropper(imageToCrop, {
                         aspectRatio: LABEL_W_MM/LABEL_H_MM, viewMode:1, dragMode:'move', autoCropArea:0.92,
-                        background:true, guides:true, highlight:false, cropBoxMovable:false, cropBoxResizable:false,
+                        background:true, guides:true, highlight:false, cropBoxMovable:true, cropBoxResizable:true,
                         zoom(){ syncZoomSlider(); },
                         ready(){ sendBtn.disabled=false; btnQueue.disabled=false; syncZoomSlider();
-                            status('✅ Ajuste puis imprime ou ajoute à la pile.', 'success'); }
+                            status('✅ Redimensionne le cadre autour de ta zone, puis imprime.', 'success'); }
                     });
                 } catch(e){ status("❌ Erreur d'interface.", 'error'); }
             }, 120);
@@ -274,11 +284,19 @@
 
         // ===== Génération étiquette (PNG sans perte) =====
         function buildLabel() {
-            const { w, h } = outPx();
-            const canvas = cropper.getCroppedCanvas({ width:w, height:h, fillColor:'#ffffff', imageSmoothingEnabled:true, imageSmoothingQuality:'high' });
+            const { w, h } = outPx(); // cible 300 DPI = plafond
+            // Résolution native de la zone choisie (aucun upscale forcé)
+            let canvas = cropper.getCroppedCanvas({ fillColor:'#ffffff', imageSmoothingEnabled:true, imageSmoothingQuality:'high' });
+            // On réduit seulement si la zone dépasse le plafond 300 DPI ; sinon on garde le natif
+            if (canvas.width > w || canvas.height > h) {
+                const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+                const c = tc.getContext('2d'); c.imageSmoothingQuality = 'high';
+                c.drawImage(canvas, 0, 0, w, h);
+                canvas = tc;
+            }
             const full = canvas.toDataURL('image/png');
             const tc = document.createElement('canvas'); tc.width=120; tc.height=180;
-            tc.getContext('2d').drawImage(canvas,0,0,tc.width,tc.height);
+            tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
             return { full, thumb: tc.toDataURL('image/jpeg', 0.7) };
         }
 
